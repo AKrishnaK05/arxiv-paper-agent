@@ -18,57 +18,61 @@ Key features:
 
 ---
 
-## Architecture and State Graph
+## Architecture and Pipeline State Machine
+
+Rather than relying on an external workflow framework (such as LangGraph or CrewAI), the system implements an explicit, state-driven custom Python state machine as permitted by the assessment specification. Discrete functional nodes pass and mutate a typed `AgentState` dictionary, managing transitions, two-tier cache branches, defensive validation short-circuits, and multi-turn session persistence.
 
 ### System Pipeline
 
 ```mermaid
 flowchart TD
     A([User Query]) --> B[1. understand_query]
-    B --> C{Query Type}
+    B --> C{Validation & Query Type}
     
-    C -->|Paper ID or URL| D[get_paper]
-    C -->|Topic Search| E[search_papers]
+    C -->|Invalid ID / Malformed| ERR1([Return Validation Error])
+    C -->|Active Session Follow-up QA| M[7. RAGService.answer]
+    C -->|Valid Paper ID or URL| D[get_paper]
+    C -->|Topic Keyword Search| E[search_papers]
     
-    D --> F[Paper Metadata]
+    D --> F{Paper Found?}
     E --> F
+    F -->|No Results| ERR2([Return Not Found Error])
+    F -->|Yes: Hydrate Paper Metadata| G{PDF in data/papers/?}
     
-    F --> G{PDF in data/papers/?}
-    G -->|No| H[2. download_pdf]
-    G -->|Yes| I{Indexed in ChromaDB?}
+    G -->|Cache Miss| H[2. download_pdf]
+    G -->|Cache Hit| I{Indexed in ChromaDB?}
     H --> I
     
-    I -->|No| J[3. parse_pdf]
+    I -->|Cache Miss| J[3. parse_pdf]
     J --> K[4. chunk_pages]
     K --> L[5. vector_store.add_chunks]
-    L --> M{Intent}
-    I -->|Yes - Cache Hit| M
+    L --> INTENT{Intent}
+    I -->|Cache Hit| INTENT
     
-    M -->|briefing| N[6. BriefingService.generate]
-    M -->|qa| O[7. RAGService.answer]
+    INTENT -->|briefing| N[6. BriefingService.generate]
+    INTENT -->|qa| M
     
     N --> P[8. output_formatter]
-    O --> P
+    M --> P
     
     P --> Q([Markdown or JSON Output])
 ```
 
 ### Shared State Schema (`AgentState`)
 
-The pipeline state is defined as a `TypedDict` in `app/state.py` and passed across nodes:
+The pipeline state is defined as a `TypedDict` in `app/state.py` and passed across functional nodes:
 
 | State Key | Type | Description |
 | :--- | :--- | :--- |
 | `user_input` | `str` | Raw input text provided by the user. |
-| `query_type` | `str` | Classified type: `"paper_id"` or `"topic"`. |
-| `intent` | `str` | Execution target: `"briefing"` or `"qa"`. |
+| `query_type` | `str` | Classified type: `"paper_id"`, `"topic"`, or `"invalid_paper_id"`. |
+| `intent` | `Optional[str]` | Execution target: `"briefing"` or `"qa"`. |
 | `paper_id` | `Optional[str]` | Canonical arXiv identifier (e.g., `2109.05633v1`). |
 | `papers` | `List[Dict[str, Any]]` | Search results retrieved from arXiv API. |
 | `selected_paper`| `Optional[Dict[str, Any]]` | Target paper metadata (title, authors, abstract, dates, PDF link). |
 | `pdf_path` | `Optional[str]` | Local filesystem path to the downloaded PDF. |
 | `pages` | `Optional[List[Dict[str, Any]]]` | Extracted text per page (excluding reference sections). |
 | `chunks` | `List[Dict[str, Any]]` | Overlapping text chunks with page bounds and chunk IDs. |
-| `vector_store` | `Optional[str]` | Active ChromaDB collection handle. |
 | `briefing` | `Optional[str]` | Generated executive briefing text. |
 | `output_format`| `Optional[str]` | Output target format: `"markdown"` or `"json"`. |
 | `error` | `Optional[str]` | Error message if validation or an external call fails. |
@@ -208,7 +212,9 @@ print(json_output)
 
 ## Example Run (End-to-End CLI Session)
 
-The following transcript is pasted directly from an interactive terminal session (`python main.py`) analyzing arXiv paper `2109.05633`, followed by 3 grounded QA exchanges demonstrating factual retrieval, algorithmic detail, and negative constraint handling:
+The following transcript represents an authentic, continuous terminal session (`python main.py`) analyzing arXiv paper `2109.05633`, followed by 3 grounded QA exchanges demonstrating factual retrieval, algorithmic detail, and negative constraint handling.
+
+*Note on Architecture Guarantees*: The top-level metadata header (Title, Authors, arXiv ID, Published Date, Link) and the citation footer (`## Sources` with exact page numbers) are extracted and injected deterministically by the Python formatting pipeline. The narrative analysis sections and answers are synthesized dynamically by Google Gemini grounded on the retrieved ChromaDB chunks.
 
 ```text
 $ python main.py

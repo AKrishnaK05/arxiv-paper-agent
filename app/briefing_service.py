@@ -1,3 +1,4 @@
+import re
 from typing import Any, Dict, List, Optional
 from app.vector_store import VectorStore
 from app.llm_service import LLMService
@@ -44,7 +45,6 @@ class BriefingService:
             retrieved_documents.extend(documents)
             retrieved_metadata.extend(metadata)
 
-        # Remove duplicate chunks
         unique_chunks = []
         seen = set()
 
@@ -144,6 +144,23 @@ Paper context:
 
         answer = self.llm.generate(prompt)
 
+        clean_answer = answer.strip()
+        if meta_header.strip():
+            clean_answer = re.sub(
+                r"^#\s*Executive Briefing:[^\n]*\n+",
+                "",
+                clean_answer,
+                flags=re.IGNORECASE
+            ).strip()
+            clean_answer = re.sub(
+                r"^\*\*Authors:\*\*.*?\n+",
+                "",
+                clean_answer
+            ).strip()
+            final_briefing = f"{meta_header.strip()}\n\n{clean_answer}"
+        else:
+            final_briefing = clean_answer
+
         raw_sources = [
             {
                 "paper_id": (chunk.get("metadata") or {}).get("paper_id"),
@@ -155,6 +172,6 @@ Paper context:
         sources = clean_sources(raw_sources)
 
         return {
-            "briefing": answer,
+            "briefing": final_briefing,
             "sources": sources
         }

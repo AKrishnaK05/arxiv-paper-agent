@@ -78,6 +78,22 @@ def extract_markdown_title(text: str) -> Optional[str]:
     return None
 
 
+def extract_metadata_line(text: str) -> Optional[Dict[str, str]]:
+    """Extract authors, arxiv_id, published date, link from header line if present."""
+    match = re.search(
+        r"\*\*Authors:\*\*\s*(.*?)\s*\|\s*\*\*arXiv ID:\*\*\s*`?(.*?)`?\s*\|\s*\*\*Published:\*\*\s*(.*?)\s*\|\s*\*\*Link:\*\*\s*(\S+)",
+        text
+    )
+    if match:
+        return {
+            "authors": match.group(1).strip(),
+            "arxiv_id": match.group(2).strip(),
+            "published": match.group(3).strip(),
+            "link": match.group(4).strip()
+        }
+    return None
+
+
 def format_json(
     content: Union[str, Dict[str, Any]],
     sources: List[Dict[str, Any]]
@@ -96,12 +112,15 @@ def format_json(
     # If the text has multiple ## sections (e.g. Executive Briefing), structure it
     if len(sections) >= 2:
         title = extract_markdown_title(text) or "Research Summary"
+        metadata = extract_metadata_line(text)
         sections.pop("Sources", None)
         result = {
             "title": title,
             "sections": sections,
             "sources": normalized_sources
         }
+        if metadata:
+            result["metadata"] = metadata
     else:
         result = {
             "answer": text,
