@@ -33,7 +33,11 @@ def parse_pdf(pdf_path: str) -> List[Dict[str, Any]]:
     if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
         return []
 
-    document = pymupdf.open(pdf_path)
+    try:
+        document = pymupdf.open(pdf_path)
+    except Exception:
+        return []
+
     total_pages = len(document)
 
     pages = []

@@ -348,6 +348,8 @@ Exiting. Happy researching!
 The test suite runs with Python's standard `unittest` framework and requires no external network access or API credentials:
 
 ```bash
+python -m unittest discover tests -v
+# or
 python -m unittest tests/test_agent.py -v
 ```
 

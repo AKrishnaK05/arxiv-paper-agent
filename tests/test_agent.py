@@ -41,6 +41,18 @@ class TestQueryUnderstanding(unittest.TestCase):
         result = understand_query(state)
         self.assertEqual(result["query_type"], "topic")
         self.assertIsNone(result["paper_id"])
+        self.assertEqual(result["intent"], "briefing")
+
+        # Test topics containing words like 'distillation' (contains 'is') or 'domain' (contains 'do')
+        for topic in [
+            "knowledge distillation techniques",
+            "domain adaptation in computer vision",
+            "hardware acceleration for deep learning",
+        ]:
+            with self.subTest(topic=topic):
+                res = understand_query({"user_input": topic})
+                self.assertEqual(res["query_type"], "topic")
+                self.assertEqual(res["intent"], "briefing")
 
     def test_detect_briefing_intent(self):
         state = {"user_input": "give me an executive briefing of 2109.05633"}

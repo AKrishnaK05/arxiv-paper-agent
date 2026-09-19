@@ -81,13 +81,9 @@ def understand_query(state: AgentState):
         "overview",
     ]
 
-    qa_indicators = [
-        "what", "how", "why", "who", "where", "when", "which", "is", "are",
-        "can", "could", "does", "do", "explain", "tell me", "compare", "?"
-    ]
-
+    qa_pattern = r"\b(what|how|why|who|where|when|which|is|are|can|could|does|do|explain|tell me|compare)\b"
     is_explicit_briefing = any(p in lowered for p in explicit_briefing_phrases)
-    has_qa_indicator = any(w in lowered for w in qa_indicators) or lowered.endswith("?")
+    has_qa_indicator = bool(re.search(qa_pattern, lowered)) or lowered.endswith("?")
     has_general_briefing = any(w in lowered for w in general_briefing_words)
 
     if is_explicit_briefing:

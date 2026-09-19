@@ -20,9 +20,10 @@ class VectorStore:
         )
 
     def _get_id_candidates(self, paper_id: str) -> List[str]:
-        clean_id = re.sub(r"v\d+$", "", paper_id.strip())
-        candidates = [paper_id.strip(), clean_id]
-        for v in range(1, 5):
+        paper_id = paper_id.strip()
+        clean_id = re.sub(r"v\d+$", "", paper_id)
+        candidates = [paper_id, clean_id]
+        for v in range(1, 11):
             candidates.append(f"{clean_id}v{v}")
         return list(dict.fromkeys(candidates))
 
