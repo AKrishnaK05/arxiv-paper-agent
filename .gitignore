@@ -1,0 +1,33 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local vector database
+data/chroma/
+
+# Downloaded papers
+data/papers/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
