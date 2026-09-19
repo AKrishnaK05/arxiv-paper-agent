@@ -15,6 +15,14 @@ def download_pdf(pdf_url: str, output_path: str) -> str:
     response = requests.get(pdf_url, headers=headers, timeout=30)
     response.raise_for_status()
 
+    if not response.content.startswith(b"%PDF"):
+        if os.path.exists(output_path):
+            try:
+                os.remove(output_path)
+            except OSError:
+                pass
+        raise ValueError(f"Downloaded content from {pdf_url} is not a valid PDF file.")
+
     with open(output_path, "wb") as file:
         file.write(response.content)
 
@@ -22,25 +30,39 @@ def download_pdf(pdf_url: str, output_path: str) -> str:
 
 
 def parse_pdf(pdf_path: str) -> List[Dict[str, Any]]:
+    if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
+        return []
+
     document = pymupdf.open(pdf_path)
+    total_pages = len(document)
 
     pages = []
-    references_started = False
+    in_references = False
 
     for page_number, page in enumerate(document, start=1):
         text = page.get_text()
 
         lines = []
 
-        for line in text.splitlines():
-            line = line.strip()
+        for raw_line in text.splitlines():
+            line = raw_line.replace("\r", "").strip()
 
             if not line:
                 continue
 
-            if re.match(r"^(references|bibliography)$", line, re.IGNORECASE):
-                references_started = True
-                break
+            # Only trigger reference detection after page 2 or after first 30% of document
+            # to prevent premature truncation on Table of Contents / outlines
+            is_deep_enough = page_number > 2 or (total_pages > 1 and page_number > total_pages * 0.3)
+            if is_deep_enough and re.match(r"^(\d+\.?\s*)?(references|bibliography)$", line, re.IGNORECASE):
+                in_references = True
+                continue
+
+            # Resume parsing if an appendix or supplementary section starts
+            if in_references and re.match(r"^(\d+\.?\s*|[A-Z]\.?\s*)?(appendix|supplementary|supplemental)", line, re.IGNORECASE):
+                in_references = False
+
+            if in_references:
+                continue
 
             if re.fullmatch(r"\d+", line):
                 continue
@@ -55,9 +77,6 @@ def parse_pdf(pdf_path: str) -> List[Dict[str, Any]]:
                 "page": page_number,
                 "text": cleaned_text
             })
-
-        if references_started:
-            break
 
     document.close()
 

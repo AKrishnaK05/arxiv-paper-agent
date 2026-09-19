@@ -1,3 +1,4 @@
+import re
 from typing import Any, Dict, List, Optional
 import chromadb
 from sentence_transformers import SentenceTransformer
@@ -17,6 +18,13 @@ class VectorStore:
         self.embedding_model = SentenceTransformer(
             "all-MiniLM-L6-v2"
         )
+
+    def _get_id_candidates(self, paper_id: str) -> List[str]:
+        clean_id = re.sub(r"v\d+$", "", paper_id.strip())
+        candidates = [paper_id.strip(), clean_id]
+        for v in range(1, 5):
+            candidates.append(f"{clean_id}v{v}")
+        return list(dict.fromkeys(candidates))
 
     def add_chunks(self, chunks: List[Dict[str, Any]]):
         if not chunks:
@@ -59,14 +67,16 @@ class VectorStore:
             "n_results": top_k
         }
         if paper_id:
-            query_kwargs["where"] = {"paper_id": paper_id}
+            candidates = self._get_id_candidates(paper_id)
+            query_kwargs["where"] = {"paper_id": {"$in": candidates}}
 
         results = self.collection.query(**query_kwargs)
         return results
 
     def has_paper(self, paper_id: str) -> bool:
         try:
-            res = self.collection.get(where={"paper_id": paper_id}, limit=1)
+            candidates = self._get_id_candidates(paper_id)
+            res = self.collection.get(where={"paper_id": {"$in": candidates}}, limit=1)
             return bool(res and res.get("ids"))
         except Exception:
             return False

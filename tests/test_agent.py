@@ -12,6 +12,8 @@ from app.output_formatter import (
     parse_markdown_sections,
 )
 from app.pipeline import ResearchPipeline
+from app.pdf_service import parse_pdf
+from app.vector_store import VectorStore
 
 
 class TestQueryUnderstanding(unittest.TestCase):
@@ -50,6 +52,11 @@ class TestQueryUnderstanding(unittest.TestCase):
         result = understand_query(state)
         self.assertEqual(result["intent"], "qa")
 
+    def test_pure_id_defaults_to_briefing_intent(self):
+        state = {"user_input": "2109.05633"}
+        result = understand_query(state)
+        self.assertEqual(result["intent"], "briefing")
+
     def test_reject_malformed_arxiv_id(self):
         malformed_inputs = [
             "999.999",
@@ -58,6 +65,7 @@ class TestQueryUnderstanding(unittest.TestCase):
             "2109.05633v",
             "123.456",
             "2109.056333",
+            "2113.05633",  # Month 13 is invalid in arXiv YYMM specification
         ]
         for inp in malformed_inputs:
             with self.subTest(inp=inp):
@@ -71,6 +79,26 @@ class TestQueryUnderstanding(unittest.TestCase):
         result = understand_query(state)
         self.assertEqual(result["query_type"], "invalid_paper_id")
         self.assertIn("Invalid arXiv URL", result["error"])
+
+    def test_detect_arxiv_prefix(self):
+        for prefix_input in ["arXiv: 2109.05633v1", "arxiv:2109.05633"]:
+            with self.subTest(inp=prefix_input):
+                state = {"user_input": prefix_input}
+                result = understand_query(state)
+                self.assertEqual(result["query_type"], "paper_id")
+                self.assertIn("2109.05633", result["paper_id"])
+
+    def test_question_with_summary_routed_to_qa(self):
+        questions = [
+            "Can you summarize the methodology?",
+            "What is the summary of section 3?",
+            "Could you explain the overview of the architecture?",
+        ]
+        for q in questions:
+            with self.subTest(q=q):
+                state = {"user_input": q}
+                result = understand_query(state)
+                self.assertEqual(result["intent"], "qa")
 
     def test_normal_topics_not_flagged_as_malformed(self):
         valid_topics = [
@@ -222,6 +250,56 @@ class TestPipelineValidation(unittest.TestCase):
         res = self.pipeline.run("999.999")
         self.assertIn("error", res)
         self.assertIn("Invalid arXiv paper ID", res["error"])
+
+    def test_explicit_paper_id_intent_classification(self):
+        # 1. Briefing request with explicit paper_id parameter
+        self.mock_briefing.generate.return_value = {
+            "briefing": "Summary of paper",
+            "sources": [{"paper_id": "2109.05633v1", "pages": [1]}]
+        }
+        self.mock_vector_store.has_paper.return_value = True
+
+        res_briefing = self.pipeline.run(
+            user_input="give me an executive briefing for this paper",
+            paper_id="2109.05633v1"
+        )
+        self.assertIn("Summary of paper", res_briefing)
+        self.mock_briefing.generate.assert_called_once()
+        self.mock_rag.answer.assert_not_called()
+
+        # 2. QA request with explicit paper_id parameter
+        self.mock_rag.answer.return_value = {
+            "answer": "Answer to query",
+            "sources": [{"paper_id": "2109.05633v1", "pages": [2]}]
+        }
+        res_qa = self.pipeline.run(
+            user_input="What is the loss function?",
+            paper_id="2109.05633v1"
+        )
+        self.assertIn("Answer to query", res_qa)
+        self.mock_rag.answer.assert_called_once()
+
+
+class TestPDFService(unittest.TestCase):
+
+    def test_parse_pdf_missing_or_empty(self):
+        self.assertEqual(parse_pdf("non_existent_file.pdf"), [])
+
+
+class TestVectorStoreCandidates(unittest.TestCase):
+
+    def test_id_candidates_generation(self):
+        from unittest.mock import patch
+        with patch("app.vector_store.chromadb.PersistentClient"), patch("app.vector_store.SentenceTransformer"):
+            vs = VectorStore()
+            candidates = vs._get_id_candidates("2109.05633")
+            self.assertIn("2109.05633", candidates)
+            self.assertIn("2109.05633v1", candidates)
+            self.assertIn("2109.05633v2", candidates)
+
+            candidates_v = vs._get_id_candidates("2109.05633v1")
+            self.assertIn("2109.05633", candidates_v)
+            self.assertIn("2109.05633v1", candidates_v)
 
 
 if __name__ == "__main__":

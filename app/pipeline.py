@@ -32,6 +32,7 @@ class ResearchPipeline:
         self,
         user_input: str,
         paper_id: Optional[str] = None,
+        intent: Optional[str] = None,
         output_format: str = "markdown"
     ) -> Union[str, Dict[str, Any]]:
 
@@ -47,11 +48,26 @@ class ResearchPipeline:
                          "Use 'markdown' or 'json'."
             }
 
-        # 1. Understand query
+        # 1. Understand query (always classify intent and detect query type)
         state = {
             "user_input": user_input
         }
+        state = understand_query(state)
 
+        # Allow caller to explicitly specify intent ("briefing" or "qa")
+        if intent in {"briefing", "qa"}:
+            state["intent"] = intent
+
+        # If the input is a malformed ID and no explicit paper_id was provided, fail fast
+        if state.get("query_type") == "invalid_paper_id" and not paper_id:
+            return {
+                "error": state.get(
+                    "error",
+                    f"Invalid arXiv paper ID: '{user_input}'."
+                )
+            }
+
+        # If paper_id is explicitly passed as a parameter, bind it while preserving classified intent
         if paper_id:
             state["paper_id"] = paper_id
             state["query_type"] = "paper_id"
@@ -59,16 +75,6 @@ class ResearchPipeline:
                 state["selected_paper"] = self.current_paper
                 state["papers"] = [self.current_paper]
         else:
-            state = understand_query(state)
-
-            if state.get("query_type") == "invalid_paper_id":
-                return {
-                    "error": state.get(
-                        "error",
-                        f"Invalid arXiv paper ID: '{user_input}'."
-                    )
-                }
-
             # If query does not contain an explicit arXiv ID, but an active paper session exists
             # and the query is a question, anchor the follow-up to the active paper
             if state.get("query_type") != "paper_id" and self.current_paper_id and state.get("intent") == "qa":
@@ -106,13 +112,18 @@ class ResearchPipeline:
         # 4. Download PDF (if not already downloaded)
         pdf_path = f"data/papers/{paper_id.replace('/', '_')}.pdf"
 
-        if not os.path.exists(pdf_path):
+        if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
             try:
                 download_pdf(
                     paper["pdf_url"],
                     pdf_path
                 )
             except Exception as e:
+                if os.path.exists(pdf_path) and os.path.getsize(pdf_path) == 0:
+                    try:
+                        os.remove(pdf_path)
+                    except OSError:
+                        pass
                 return {
                     "error": f"Failed to download the paper PDF: {str(e)}"
                 }

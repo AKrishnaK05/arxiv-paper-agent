@@ -6,20 +6,22 @@ def understand_query(state: AgentState):
     user_input = state["user_input"].strip()
     lowered = user_input.lower()
 
-    # Strip common conversational briefing wrappers to isolate target if present
+    # Strip common conversational briefing wrappers and arxiv prefixes
     target = re.sub(
         r"^(give me an? (executive )?briefing (for|of)?|summarize|summary of)\s+",
         "",
         user_input,
         flags=re.IGNORECASE
     ).strip()
+    target = re.sub(r"^(arxiv:\s*|arXiv:\s*)", "", target, flags=re.IGNORECASE).strip()
 
-    arxiv_id_pattern = r"^\d{4}\.\d{4,5}(v\d+)?$"
-    arxiv_url_pattern = r"arxiv\.org/(abs|pdf)/(\d{4}\.\d{4,5}(v\d+)?)"
-    embedded_id_pattern = r"\b(\d{4}\.\d{4,5}(v\d+)?)\b"
+    # Valid arXiv IDs: YYMM.NNNN or YYMM.NNNNN (month must be 01-12)
+    arxiv_id_pattern = r"^\d{2}(0[1-9]|1[0-2])\.\d{4,5}(v\d+)?$"
+    arxiv_url_pattern = r"arxiv\.org/(abs|pdf)/(\d{2}(0[1-9]|1[0-2])\.\d{4,5}(v\d+)?)"
+    embedded_id_pattern = r"\b(\d{2}(0[1-9]|1[0-2])\.\d{4,5}(v\d+)?)\b"
 
     # Malformed patterns: look like an arXiv identifier or URL but fail validation
-    malformed_id_pattern = r"^\d{1,6}\.[0-9a-zA-Z]+$"
+    malformed_id_pattern = r"^(\d{1,6}\.[0-9a-zA-Z]+|\d{4}\.\d{4,5}(v\d+)?)$"
     malformed_url_pattern = r"arxiv\.org/(abs|pdf)/(\S+)"
 
     url_match = re.search(arxiv_url_pattern, user_input)
@@ -60,23 +62,41 @@ def understand_query(state: AgentState):
 
     state["query_type"] = query_type
 
-    # Intent detection
-
-    briefing_keywords = [
+    # Intent detection: differentiate full executive briefings from specific QA
+    explicit_briefing_phrases = [
         "executive briefing",
-        "briefing",
-        "give me a summary",
-        "summarize this paper",
-        "summarise this paper",
-        "summarize the paper",
-        "summarise the paper",
-        "overview of this paper",
-        "overview of the paper",
-        "research briefing",
-        "research summary",
+        "full briefing",
+        "entire paper briefing",
+        "generate briefing",
+        "create briefing",
     ]
 
-    if any(keyword in lowered for keyword in briefing_keywords):
+    general_briefing_words = [
+        "briefing",
+        "digest",
+        "give me a summary",
+        "summarize",
+        "summarise",
+        "summary",
+        "overview",
+    ]
+
+    qa_indicators = [
+        "what", "how", "why", "who", "where", "when", "which", "is", "are",
+        "can", "could", "does", "do", "explain", "tell me", "compare", "?"
+    ]
+
+    is_explicit_briefing = any(p in lowered for p in explicit_briefing_phrases)
+    has_qa_indicator = any(w in lowered for w in qa_indicators) or lowered.endswith("?")
+    has_general_briefing = any(w in lowered for w in general_briefing_words)
+
+    if is_explicit_briefing:
+        state["intent"] = "briefing"
+    elif has_qa_indicator:
+        state["intent"] = "qa"
+    elif has_general_briefing:
+        state["intent"] = "briefing"
+    elif query_type in {"paper_id", "topic"}:
         state["intent"] = "briefing"
     else:
         state["intent"] = "qa"

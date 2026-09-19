@@ -135,27 +135,28 @@ def format_markdown(content: str, sources: List[Dict[str, Any]]) -> str:
     normalized_sources = clean_sources(sources)
     text = str(content).strip()
 
+    # Strip any model-hallucinated Sources heading to ensure only verified citations are displayed
+    clean_text = re.sub(r"\n##\s*Sources.*$", "", text, flags=re.DOTALL | re.IGNORECASE).strip()
+
     lines = []
-    if not text.startswith("#"):
-        lines.append(f"# Answer\n\n{text}\n")
+    if not clean_text.startswith("#"):
+        lines.append(f"# Answer\n\n{clean_text}\n")
     else:
-        lines.append(f"{text}\n")
+        lines.append(f"{clean_text}\n")
 
     if normalized_sources:
-        # Check if the text already contains a ## Sources section
-        if not re.search(r"^##\s+Sources", text, re.MULTILINE):
-            lines.append("## Sources\n")
-            for source in normalized_sources:
-                paper_id = source["paper_id"]
-                pages = source["pages"]
+        lines.append("## Sources\n")
+        for source in normalized_sources:
+            paper_id = source["paper_id"]
+            pages = source["pages"]
 
-                if len(pages) == 1:
-                    pages_str = f"Page: {pages[0]}"
-                elif len(pages) > 1:
-                    pages_str = f"Pages: {', '.join(str(p) for p in pages)}"
-                else:
-                    pages_str = "Pages: N/A"
+            if len(pages) == 1:
+                pages_str = f"Page: {pages[0]}"
+            elif len(pages) > 1:
+                pages_str = f"Pages: {', '.join(str(p) for p in pages)}"
+            else:
+                pages_str = "Pages: N/A"
 
-                lines.append(f"- Paper: `{paper_id}` | {pages_str}")
+            lines.append(f"- Paper: `{paper_id}` | {pages_str}")
 
     return "\n".join(lines).strip() + "\n"
