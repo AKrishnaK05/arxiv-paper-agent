@@ -89,24 +89,21 @@ arxiv-paper-agent/
 │   ├── arxiv_service.py       # arXiv API client with retry and error handling
 │   ├── briefing_service.py    # Multi-query executive briefing synthesis
 │   ├── chunking.py            # Sliding-window page-aware text chunking
-│   ├── cli.py                 # Interactive terminal loop
-│   ├── llm_service.py         # Google GenAI / Gemini API client wrapper
+│   ├── cli.py                 # Interactive terminal loop with prompt flushing
+│   ├── llm_service.py         # Google GenAI client wrapper with model fallback chain
 │   ├── output_formatter.py    # Markdown and JSON serializers with citation cleaning
 │   ├── pdf_service.py         # PDF download and PyMuPDF text extraction
-│   ├── pipeline.py            # Central ResearchPipeline orchestrator
-│   ├── query.py               # Input classification and intent detection
+│   ├── pipeline.py            # Central ResearchPipeline state machine orchestrator
+│   ├── query.py               # Input classification and word-boundary intent detection
 │   ├── rag_service.py         # Retrieval-augmented question answering
 │   ├── state.py               # TypedDict state definition
-│   └── vector_store.py        # ChromaDB wrapper and sentence-transformers embeddings
+│   └── vector_store.py        # ChromaDB wrapper with version-agnostic candidate matching
 ├── data/
 │   ├── chroma/                # Persistent vector database files (ignored by git)
 │   └── papers/                # Downloaded PDF cache (ignored by git)
-├── scripts/
-│   └── inspect_sections.py    # Utility script to inspect extracted PDF pages
 ├── tests/
 │   ├── __init__.py            # Test package marker
-│   ├── test_agent.py          # Fast unit test suite (mocks external APIs)
-│   └── test_pipeline.py       # End-to-end integration and failure case validation
+│   └── test_agent.py          # 25-test unit test suite (isolated, mocks external APIs)
 ├── .env                       # Environment secrets (ignored by git)
 ├── .env.example               # Configuration template
 ├── .gitignore                 # Standard repository exclusion rules
@@ -149,15 +146,15 @@ Create a `.env` file in the project root:
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
-`GEMINI_MODEL` is optional and defaults to `gemini-2.5-flash`. Supported options include `gemini-2.5-flash` and `gemini-3.5-flash-lite`.
+`GEMINI_MODEL` is optional and defaults to `gemini-3.5-flash-lite` (supported options include `gemini-3.5-flash-lite`, `gemini-2.5-flash`, and `gemini-flash-latest`).
 
-#### Free-Tier Rate Limits
+#### Free-Tier Quota Resilience & Automatic Fallback
 Testing with Google AI Studio's free tier operates under standard quotas:
-* **Rate Limits**: 15 requests per minute (RPM) and up to 1,500 requests per day (RPD) depending on the selected model tier.
-* **Mitigation**: The system's two-tier caching architecture (local PDF caching and persistent ChromaDB vector storage) minimizes redundant API calls when testing repeat queries on the same paper.
+* **Automatic Model Fallback Chain**: To safeguard against transient rate limits (`429 RESOURCE_EXHAUSTED`) or model tier deprecations, `LLMService` automatically cascades through an active fallback list (`gemini-3.5-flash-lite` -> `gemini-2.5-flash` -> `gemini-flash-latest`), ensuring the pipeline does not fail mid-session.
+* **Two-Tier Cache Elimination**: The system's two-tier caching architecture (local PDF caching and persistent ChromaDB vector storage with version-agnostic candidate matching) minimizes redundant external calls on repeated queries.
 
 ---
 
@@ -345,7 +342,7 @@ Exiting. Happy researching!
 
 ## Automated Testing Suite
 
-The test suite runs with Python's standard `unittest` framework and requires no external network access or API credentials:
+The test suite runs with Python's standard `unittest` framework and requires no external network access or API credentials (running all **25 tests in ~0.11 seconds**):
 
 ```bash
 python -m unittest discover tests -v
@@ -353,11 +350,12 @@ python -m unittest discover tests -v
 python -m unittest tests/test_agent.py -v
 ```
 
-### Test Coverage
-* **Query Parsing**: arXiv ID extraction (standard, versioned, embedded in text), URL parsing, topic detection, and intent classification (`briefing` vs `qa`).
+### Test Coverage (25 Unit Tests)
+* **Query Parsing & Intent Classification**: arXiv ID extraction (standard, versioned, embedded in natural language, and `arXiv:` prefix stripping), URL parsing, topic keyword detection, and word-boundary regex intent classification (`briefing` vs `qa`) that prevents false positive substring triggers on terms like `distillation` or `domain`.
 * **Chunking**: Sliding-window boundaries, token overlaps, and page boundary preservation.
-* **Output Formatting**: Citation normalization, page range parsing, Markdown synthesis, and structured JSON parsing.
-* **Error Handling & Validation**: Input sanitization, malformed arXiv ID and URL rejection (e.g. `999.999`, `2109.56`), unsupported format handling, and missing paper error paths.
+* **Output Formatting & Citations**: Citation deduplication and normalization, page range parsing, Markdown synthesis, and structured JSON serialization with metadata extraction.
+* **Defensive Validation & Resilience**: Input sanitization, malformed arXiv ID rejection (e.g. `999.999`, `2109.56`, calendar month validation for `2113.05633`), unsupported format handling, 0-byte corrupted PDF handling, and TOC-safe bibliography pruning with appendix retention.
+* **Vector Store Caching**: Version-agnostic candidate ID matching (`2109.05633` vs `2109.05633v1` through `v10`) ensuring seamless cache hits across unversioned and versioned queries.
 
 ---
 
