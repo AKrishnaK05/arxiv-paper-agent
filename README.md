@@ -30,27 +30,27 @@ flowchart TD
     B --> C{Validation & Query Type}
     
     C -->|Invalid ID / Malformed| ERR1([Return Validation Error])
-    C -->|Active Session Follow-up QA| M[7. RAGService.answer]
-    C -->|Valid Paper ID or URL| D[get_paper]
-    C -->|Topic Keyword Search| E[search_papers]
+    C -->|Valid Paper ID or URL| D[2a. get_paper]
+    C -->|Topic Keyword Search| E[2b. search_papers]
+    C -->|Active Paper Session| I
     
     D --> F{Paper Found?}
     E --> F
     F -->|No Results| ERR2([Return Not Found Error])
-    F -->|Yes: Hydrate Paper Metadata| G{PDF in data/papers/?}
+    F -->|Yes: Select Paper| G{PDF in data/papers/?}
     
-    G -->|Cache Miss| H[2. download_pdf]
+    G -->|Cache Miss| H[3. download_pdf]
     G -->|Cache Hit| I{Indexed in ChromaDB?}
     H --> I
     
-    I -->|Cache Miss| J[3. parse_pdf]
-    J --> K[4. chunk_pages]
-    K --> L[5. vector_store.add_chunks]
+    I -->|Cache Miss| J[4. parse_pdf]
+    J --> K[5. chunk_pages]
+    K --> L[6. vector_store.add_chunks]
     L --> INTENT{Intent}
     I -->|Cache Hit| INTENT
     
-    INTENT -->|briefing| N[6. BriefingService.generate]
-    INTENT -->|qa| M
+    INTENT -->|briefing| N[7a. BriefingService.generate]
+    INTENT -->|qa| M[7b. RAGService.answer]
     
     N --> P[8. output_formatter]
     M --> P
