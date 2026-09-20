@@ -214,93 +214,120 @@ The following transcript represents an authentic, continuous terminal session (`
 *Note on Architecture Guarantees*: The top-level metadata header (Title, Authors, arXiv ID, Published Date, Link) and the citation footer (`## Sources` with exact page numbers) are extracted and injected deterministically by the Python formatting pipeline. The narrative analysis sections and answers are synthesized dynamically by Google Gemini grounded on the retrieved ChromaDB chunks.
 
 ```text
-$ python main.py
-======================================================================
+(.venv) (base) PS C:\Users\adwai\OneDrive\Documents\LPU\arxiv-paper-agent> python main.py                
+                                                                                                         ======================================================================
 Autonomous arXiv Paper Digest & QA Agent
 ======================================================================
 Enter an arXiv ID, URL, or research topic to generate an Executive Briefing.
 Type 'exit' or 'quit' at any prompt to stop.
 
-Research Topic or arXiv ID > 2109.05633
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher r
+ate limits and faster downloads.                                                                         Loading weights: 100%|███████████████████████████████████████████████████████████████████████████████████
+█████| 103/103 [00:00<00:00, 1093.01it/s]                                                                Research Topic or arXiv ID > 2109.05633
 
 Processing paper (retrieving, parsing, indexing)... Please wait.
-
+Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we
+ recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.                      
 ======================================================================
-# Executive Briefing: GarmentCodeData: A Large-Scale Dataset of 3D Garments with Sewing Patterns
+# Executive Briefing: Generating Datasets of 3D Garments with Sewing Patterns
 
-**Authors:** Maria Korosteleva, Sung-Hee Lee | **arXiv ID:** 2109.05633 | **Published:** 2021-09-12 | **Link:** https://arxiv.org/pdf/2109.05633v1
-
+**Authors:** Maria Korosteleva, Sung-Hee Lee | **arXiv ID:** `2109.05633v1` | **Published:** 2021-09-12T2
+3:03:48+00:00 | **Link:** https://arxiv.org/pdf/2109.05633v1                                             
 ## Why This Paper Matters
-This paper addresses the scarcity of paired 3D garment datasets containing explicit 2D sewing patterns. Prior datasets were constrained to small sample sizes or single garment categories, hindering generalizable 3D deep learning models for garment reconstruction and CAD design. The authors introduce an automated parametric generator and release a 22,000+ sample paired dataset.
-
+While deep learning models for rigid objects and human meshes have advanced significantly, structured def
+ormable objects like clothing lack large-scale datasets that pair 3D garment models with their underlying structural sewing patterns. This paper introduces a flexible, automated generation pipeline and a domain-specific template language to produce large datasets of diverse 3D garments with corresponding sewing patterns. By providing over 20,000 synthetic garment design variations complete with segmentation labels and simulated 3D scanning artifacts, this work bridges a critical gap for deep learning research in neural 3D garment modeling, reconstruction, and structure estimation.                                           
 ## Problem Statement
-Existing 3D clothing datasets lack accompanying sewing pattern information, topology consistency, or scalable design variations required to train models capable of recovering production-ready sewing panels from 3D models or scans.
-
+The research challenges addressed by the paper include:
+- A scarcity of large-scale datasets providing garment sewing patterns alongside 3D garment models or ren
+ders.                                                                                                    - Existing synthetic or real-world garment datasets offer limited design variations, sparse samples, or r
+ely on 3D cut-and-rearrange methods that fail to guarantee physically correct garment drapes.            - Existing datasets lack alignment with noisy, in-the-wild 3D scan data, as they typically only provide c
+lean, complete artificial meshes.                                                                        - The need for datasets that can train deep learning models to generalize across complex structures like 
+variable-length sewing patterns, structured deformable panels, cross-references (stitches), and novel topologies.                                                                                                 
 ## Method & Approach
-* Parametric Templates: Defined 19 base sewing pattern templates using a structured JSON specification to parameterize panel geometries and seam attachments.
-* Stochastic Sampling: Automated sampling draws panel parameters within defined ranges while running topological checks to discard self-intersecting panels.
-* Physics-Based Simulation: Draped sampled 2D patterns onto an average female SMPL body model in T-pose using Qualoth physics simulation.
-* Scan Artifact Emulation: Filtered mesh faces occluded from virtual scanner camera positions to mimic optical scanning occlusion artifacts.
-
+The paper proposes an automated data generation pipeline split into a flexible template specification sys
+tem and an automatic dataset construction workflow:                                                      - **JSON-Based Pattern Template Specification:** Defines a human-readable domain-specific format consisti
+ng of a base sewing pattern (unordered panels of 2D vertices, ordered oriented edge loops forming Bezier curves or lines, global translations/rotations, and stitches joining edges), parameter rules, and optional edge-consistency constraints.                                                                          - **Rule-Based Parameterization:** Operates at the panel edge level (modifying edge length or curvature c
+oordinates via multiplicative or additive rules with specified ranges and vectors) to enable symmetric/asymmetric changes and independent or simultaneous variations.                                             - **Automated Sampling & Pre-processing:** Samples individual patterns from templates, filters out topolo
+gical errors like self-intersecting panels, and pre-processes patterns to ensure consistency (sorting panels by 3D coordinates, enforcing counterclockwise edge loops, and standardizing the first edge originating from the lowest-leftmost vertex).                                                                      - **Physics Simulation Draping:** Utilizes Qualoth as a base physics simulator to drape pattern samples o
+ver a standardized human body model (average female SMPL body model in T-pose) with fixed material properties, producing OBJ 3D meshes with per-vertex segmentation labels.                                       - **3D Scanning Artifact Imitation:** Post-processes clean simulated meshes to mimic real-world occlusion
+s by placing garment and body models in a virtual box and removing faces invisible to random rays shot from surface centers (using approximately 10% visible ray thresholds).                                     
 ## Key Results & Claims
-* Generated 23,500 total garment designs, with 22,547 designs successfully passing simulation penetration and stability checks.
-* Provided 12 training templates covering standard garments and 7 test templates evaluating topological generalization.
-* Released dataset on Zenodo under CC BY 4.0 alongside the open-source generation pipeline.
-
+- **Large-Scale Dataset Created:** Produced a public dataset containing 23,500 total garment design sampl
+es (22,547 successfully passing simulation quality checks) distributed under CC BY 4.0 on Zenodo.        - **Template Diversity:** Built 19 sewing pattern templates divided into a training group (12 templates c
+overing simple garments like skirts, dresses, tops, pants, jackets, hoodies, and jumpsuits with 1,000 to 2,700 samples each) and a test group (7 templates specifically designed to evaluate generalization across novel sewing pattern topologies by rearranging training parts into new configurations, with 150 samples each).                                                                                                   - **Computational Efficiency:** The automated pipeline achieves a generation throughput where the sewing 
+pattern sampling stage generates ~1,300 designs per minute, with individual garment processing taking ~3 minutes for simulation, 45 seconds for scan imitation, and 1 minute for rendering.                       
 ## Limitations
-* Fabric physical properties, human body pose, and human body shape remained fixed across all samples.
-* Panel boundary curves are restricted to linear and quadratic parameterizations.
-* Micro-features such as pleats, darts, buttons, and multi-layer garments are not modeled.
-
+- **Fixed Environmental Parameters:** The current pipeline keeps material properties, body shape, and bod
+y pose fixed after generation, omitting automatic sampling for these variations.                         - **Omission of Fine Details:** Fine features of sewing pattern design such as darts, pleats, or complex 
+edge curves are omitted from the current generation templates.                                           - **Restricted Garment Arrangements:** Complex garment arrangements—such as fabric layering (e.g., ballro
+om skirts), accessories, overlaying multiple garments, and complex materials like thick winter coats—are not currently represented.                                                                               
+## Future Work
+- Enrich the data generation pipeline to cover skipped fine features such as darts, pleats, and complex e
+dge curves.                                                                                              - Provide a broader range of base parametric templates.
+- Incorporate complex garment arrangements such as fabric layering, accessories, multi-garment overlaying
+, and complex materials (e.g., thick winter coats).                                                      
 ## Suggested Follow-up Questions
-1. How does simulation performance scale with panel count?
-2. What criteria determined failure during the Qualoth draping step?
-3. Could the parametric template format support multi-garment assemblies?
-
+1. How does enforcing strict structural pre-processing rules (such as sorting panels by 3D coordinates an
+d standardizing edge loops) affect the diversity or realism of the generated patterns?                   2. What specific deep learning architectures or tasks are best suited to handle the variable-length, stru
+ctured nature of sewing patterns combined with cross-reference stitch data as inputs or outputs?         3. How effectively do models trained on clean simulated meshes combined with the 3D scanning artifact imi
+tation pipeline generalize to actual real-world "in-the-wild" scan captures?                             4. In what ways might expanding the pipeline to handle dynamic body poses and diverse human body shapes (
+beyond a fixed SMPL T-pose) impact simulation stability and failure rates?                               
 ## Sources
-- Paper: 2109.05633v1 | Pages: 1, 2, 3, 4, 5, 6, 7, 8, 9
+
+- Paper: `2109.05633v1` | Pages: 6, 7
+- Paper: `2109.05633v1` | Page: 9
+- Paper: `2109.05633v1` | Pages: 5, 6
+- Paper: `2109.05633v1` | Pages: 7, 8
+- Paper: `2109.05633v1` | Page: 7
+- Paper: `2109.05633v1` | Pages: 4, 5
+- Paper: `2109.05633v1` | Page: 5
+- Paper: `2109.05633v1` | Pages: 8, 9
+- Paper: `2109.05633v1` | Pages: 2, 3
+- Paper: `2109.05633v1` | Page: 2
+- Paper: `2109.05633v1` | Pages: 3, 4
+- Paper: `2109.05633v1` | Pages: 1, 2
+
 ======================================================================
 
-QA Mode Active — You can now ask follow-up questions about this paper.
+QA Mode Active - You can now ask follow-up questions about this paper (2109.05633v1).
 Type 'new' to analyze a different paper, or 'exit' to quit.
 
-Follow-up Question > What 3D body model was used during data generation?
+Follow-up Question > what 3-D model was used during data generation?
+
+Retrieving grounded context from paper...
+
+----------------------------------------------------------------------
+
+
+Based on the provided context, the paper mentions that a "body model" is used for draping the sewing patt
+ern samples during data generation, and notes that "generally speaking, any 3D object can be used as a body model, but it is recommended to use the same body model that the template panels were placed around". However, the specific name, shape, or type of the 3-D body model is not provided in the text.            
+## Sources
+
+- Paper: `2109.05633v1` | Pages: 3, 4
+- Paper: `2109.05633v1` | Pages: 1, 2
+- Paper: `2109.05633v1` | Page: 7
+- Paper: `2109.05633v1` | Pages: 8, 9
+- Paper: `2109.05633v1` | Pages: 6, 7
+
+----------------------------------------------------------------------
+
+Follow-up Question > which dataset is used?
 
 Retrieving grounded context from paper...
 
 ----------------------------------------------------------------------
 # Answer
 
-An average female body model provided by SMPL [22] in T-pose was used for data generation. Body shape and pose parameters were held constant.
-
+Based on the provided paper context, the authors introduce and use their own synthetically generated data
+set comprising more than 20,000 garment designs. This dataset was created using a data generation pipeline based on 19 originally designed garment templates (divided into a training group of 12 templates and a test group of 7 templates), utilizing an average female body model provided by SMPL in T-pose.           
 ## Sources
-- Paper: 2109.05633v1 | Pages: 2, 3
-----------------------------------------------------------------------
 
-Follow-up Question > How are scanning artifacts imitated?
+- Paper: `2109.05633v1` | Pages: 2, 3
+- Paper: `2109.05633v1` | Pages: 7, 8
+- Paper: `2109.05633v1` | Pages: 8, 9
+- Paper: `2109.05633v1` | Pages: 4, 5
+- Paper: `2109.05633v1` | Pages: 3, 4
 
-Retrieving grounded context from paper...
-
-----------------------------------------------------------------------
-# Answer
-
-The pipeline imitates scanning artifacts by identifying and removing mesh faces that would be occluded from camera views in a physical scanner setup, testing visibility against virtual scanner bounding walls.
-
-## Sources
-- Paper: 2109.05633v1 | Pages: 4, 5
-----------------------------------------------------------------------
-
-Follow-up Question > What is the primary author's favorite programming language?
-
-Retrieving grounded context from paper...
-
-----------------------------------------------------------------------
-# Answer
-
-The provided paper context does not contain information regarding the author's favorite programming language.
-
-## Sources
-- Paper: 2109.05633v1 | Pages: 1, 2
 ----------------------------------------------------------------------
 
 Follow-up Question > exit
