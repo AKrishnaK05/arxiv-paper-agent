@@ -362,5 +362,5 @@ python -m unittest tests/test_agent.py -v
 ## Video Walkthrough
 
 The 4-minute technical demonstration and reflection covering architecture decisions, caching mechanisms, executive briefing generation, and grounded QA is available here:
-* **Walkthrough Video**: [Link to Video](https://insert-your-video-link-here)
+* **Walkthrough Video**: [Link to Video](https://www.loom.com/share/e97af23b71c44f3da0ac790c873de6c1)
 
